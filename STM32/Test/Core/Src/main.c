@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -54,12 +54,15 @@ static void MX_GPIO_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-int maincount = 0;
-
-void function (void) {
-	static int localcount = 0;
-	localcount++;
+int _write(int file, char  *ptr, int len) {
+	//Modifying printf and put function to show on the ITM
+	for(int i = 0; i < len; i++)
+		ITM_SendChar(*ptr++);
+	return len;
 }
+
+uint8_t count = 0;
+
 /* USER CODE END 0 */
 
 /**
@@ -102,13 +105,10 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
-	  HAL_Delay(500);
-	  maincount++;
-	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
-	  HAL_Delay(2000);
-	  maincount++;
-	  function();
+	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5); //Turns on board LED on/off
+	  count++;
+	  printf("HELLO WORLD Count: %d \n", count); //Prints count
+	  HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
