@@ -69,6 +69,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
 	isSent = 1;
 	countinterrupt++;
 }//CALLBACK for when the interrupt ends then this is called back to signal it has finished transmission
+
 /* USER CODE END 0 */
 
 /**
@@ -112,6 +113,8 @@ int main(void)
 	  last 8 bits 0000 0001 with the 0xff (1111 1111). For last bit 1 & 1 = 1, 0 & 1 = 0. So it basically is bitwise logic
 	  and all ends up being 0000 0001, which is 1, so it basically repeats from 0 to 255. */
 
+  HAL_UART_Transmit_DMA(&huart2, TxData, 10240); //DMA Circular
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -129,13 +132,17 @@ int main(void)
 /*Transmits at set intervals interrupts the main code and
 sends one byte throughout program until transmission is complete */
 
-	  if (isSent == 1) {
+
+
+	 /* if (isSent == 1) {
 		  HAL_UART_Transmit_DMA(&huart2, TxData, 10240);
 		  isSent = 0;
-	  } /*DMA version, similar but DMA does not do interrupts so main code wont be as delayed
+	  }
+	  DMA version, similar but DMA does not do interrupts so main code wont be as delayed
 	  Interrupts do delay main code but we dont notice since its very small, even delays HAL_Delay
 	  somewhat. DMA means less strain and can avoid the cpu. Same results because either way
 	  the code will have to cycle twice before it can work in both, but it would be quicker in DMA. */
+	  // DMA Normal
 
 	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
 	  HAL_Delay(500);
