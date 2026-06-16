@@ -65,10 +65,37 @@ int isSent = 1;
 int countinterrupt = 0;
 int countloop = 0;
 
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
-	isSent = 1;
-	countinterrupt++;
-}//CALLBACK for when the interrupt ends then this is called back to signal it has finished transmission
+int indx = 49;
+
+void HAL_UART_TxHalfCpltCallback(UART_HandleTypeDef *huart) {
+
+	for (uint32_t i = 0; i < 5120; i++) {
+    TxData[i] = indx;
+	}
+indx++;
+}
+
+//CALLBACK for when the UART transmits half the data then this is called back to signal it has finished half of transmission, in this Circular DMA
+//Serves as purpose of stopping the DMA at one point
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+    for (uint32_t i = 5120; i < 10240; i++)
+    {
+        TxData[i] = indx;
+    }
+    indx++;
+
+    if (indx >= 60) //Increments to 60 in the half call, in this complete one it will be 61
+    {
+        HAL_UART_DMAStop(&huart2);
+    }
+
+    isSent = 1;
+    countinterrupt++;
+}
+//CALLBACK for when the interrupt ends then this is called back to signal it has finished transmission, in this Circular DMA
+//Serves as purpose of stopping the DMA at one point
 
 /* USER CODE END 0 */
 
@@ -113,7 +140,7 @@ int main(void)
 	  last 8 bits 0000 0001 with the 0xff (1111 1111). For last bit 1 & 1 = 1, 0 & 1 = 0. So it basically is bitwise logic
 	  and all ends up being 0000 0001, which is 1, so it basically repeats from 0 to 255. */
 
-  HAL_UART_Transmit_DMA(&huart2, TxData, 10240); //DMA Circular
+  HAL_UART_Transmit_DMA(&huart2, TxData, 10240); //DMA Circular, we are currently in circular mode. This repeats on and on
 
   /* USER CODE END 2 */
 
@@ -142,12 +169,14 @@ sends one byte throughout program until transmission is complete */
 	  Interrupts do delay main code but we dont notice since its very small, even delays HAL_Delay
 	  somewhat. DMA means less strain and can avoid the cpu. Same results because either way
 	  the code will have to cycle twice before it can work in both, but it would be quicker in DMA. */
-	  // DMA Normal
+	  // DMA Normal, in this mode if there is no while loop it delivers data once and never again.
 
 	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
 	  HAL_Delay(500);
 	  countloop++;
 
+	  //USE Block normal transmit for small data, interrupt for larger data and DMA for lots of data to be transferred.
+	  //Circular DMA useful to transfer very large bits of data.
   }
   /* USER CODE END 3 */
 }
