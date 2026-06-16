@@ -122,16 +122,24 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-	  if (isSent == 1) {
+/*    if (isSent == 1) {
 		  HAL_UART_Transmit_IT(&huart2, TxData, 10240);
 		  isSent = 0;
-	  countloop++;
-	  }
+	  }  */
 /*Transmits at set intervals interrupts the main code and
 sends one byte throughout program until transmission is complete */
 
+	  if (isSent == 1) {
+		  HAL_UART_Transmit_DMA(&huart2, TxData, 10240);
+		  isSent = 0;
+	  } /*DMA version, similar but DMA does not do interrupts so main code wont be as delayed
+	  Interrupts do delay main code but we dont notice since its very small, even delays HAL_Delay
+	  somewhat. DMA means less strain and can avoid the cpu. Same results because either way
+	  the code will have to cycle twice before it can work in both, but it would be quicker in DMA. */
+
 	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
 	  HAL_Delay(500);
+	  countloop++;
 
   }
   /* USER CODE END 3 */
