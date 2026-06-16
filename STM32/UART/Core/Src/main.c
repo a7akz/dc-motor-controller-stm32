@@ -42,6 +42,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
 
@@ -50,6 +51,7 @@ UART_HandleTypeDef huart2;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -58,9 +60,15 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-uint8_t data = 123;
-uint8_t numarray[4];
+uint8_t TxData[10240];
+int isSent = 1;
+int countinterrupt = 0;
+int countloop = 0;
 
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
+	isSent = 1;
+	countinterrupt++;
+}//CALLBACK for when the interrupt ends then this is called back to signal it has finished transmission
 /* USER CODE END 0 */
 
 /**
@@ -92,8 +100,17 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
+
+  for (uint32_t i = 0; i < 10240; i++)
+	  TxData[i] = i&(0xff); /* & operator is a BITWISE AND it compares the bits that make up i with 0xff
+	  0xff is 8 1's. 1111 1111, 4 bits per hex, f is 1111 and other f is 1111.
+	  i increments, 0000 0000 to 0000 0001, when it goes more than 255 ie. 0000 0001 0000 0001 is 257, it compares the
+	  last 8 bits 0000 0001 with the 0xff (1111 1111). For last bit 1 & 1 = 1, 0 & 1 = 0. So it basically is bitwise logic
+	  and all ends up being 0000 0001, which is 1, so it basically repeats from 0 to 255. */
 
   /* USER CODE END 2 */
 
@@ -104,9 +121,18 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  sprintf((char *)numarray, "%d\r\n", data);
-	  HAL_UART_Transmit(&huart2, numarray, strlen((char *)numarray), 1000);
-	  HAL_Delay(1000);
+
+	  if (isSent == 1) {
+		  HAL_UART_Transmit_IT(&huart2, TxData, 10240);
+		  isSent = 0;
+	  countloop++;
+	  }
+/*Transmits at set intervals interrupts the main code and
+sends one byte throughout program until transmission is complete */
+
+	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+	  HAL_Delay(500);
+
   }
   /* USER CODE END 3 */
 }
@@ -206,12 +232,30 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMAMUX1_CLK_ENABLE();
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
 
   /* USER CODE END MX_GPIO_Init_1 */
@@ -220,6 +264,16 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PA5 */
+  GPIO_InitStruct.Pin = GPIO_PIN_5;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
