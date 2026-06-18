@@ -42,7 +42,6 @@
 
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef huart2;
-DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
 
@@ -51,7 +50,6 @@ DMA_HandleTypeDef hdma_usart2_tx;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -60,42 +58,17 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-uint8_t TxData[10240];
-int isSent = 1;
-int countinterrupt = 0;
-int countloop = 0;
+uint8_t RxData[20];
+uint8_t temp[2];
+int indx = 0;
 
-int indx = 49;
+uint8_t FinalData[20]; // Stores value of rxdata
 
-void HAL_UART_TxHalfCpltCallback(UART_HandleTypeDef *huart) {
-
-	for (uint32_t i = 0; i < 5120; i++) {
-    TxData[i] = indx;
-	}
-indx++;
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+	memcpy(RxData+indx++, temp, 1); //Takes addy of RxData and increments next value and stores the value in temp where data is stored
+	if(indx >= 20) indx = 0;
+	HAL_UART_Receive_IT(&huart2, temp, 1); //Calls UART to receive data
 }
-
-//CALLBACK for when the UART transmits half the data then this is called back to signal it has finished half of transmission, in this Circular DMA
-//Serves as purpose of stopping the DMA at one point
-
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
-{
-    for (uint32_t i = 5120; i < 10240; i++)
-    {
-        TxData[i] = indx;
-    }
-    indx++;
-
-    if (indx >= 60) //Increments to 60 in the half call, in this complete one it will be 61
-    {
-        HAL_UART_DMAStop(&huart2);
-    }
-
-    isSent = 1;
-    countinterrupt++;
-}
-//CALLBACK for when the interrupt ends then this is called back to signal it has finished transmission, in this Circular DMA
-//Serves as purpose of stopping the DMA at one point
 
 /* USER CODE END 0 */
 
@@ -128,19 +101,13 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  HAL_UART_Receive_IT(&huart2, temp, 1); //Main code can run without stopping, allowing for light to blink, while waiting for Rx.
 
-  for (uint32_t i = 0; i < 10240; i++)
-	  TxData[i] = i&(0xff); /* & operator is a BITWISE AND it compares the bits that make up i with 0xff
-	  0xff is 8 1's. 1111 1111, 4 bits per hex, f is 1111 and other f is 1111.
-	  i increments, 0000 0000 to 0000 0001, when it goes more than 255 ie. 0000 0001 0000 0001 is 257, it compares the
-	  last 8 bits 0000 0001 with the 0xff (1111 1111). For last bit 1 & 1 = 1, 0 & 1 = 0. So it basically is bitwise logic
-	  and all ends up being 0000 0001, which is 1, so it basically repeats from 0 to 255. */
 
-  HAL_UART_Transmit_DMA(&huart2, TxData, 10240); //DMA Circular, we are currently in circular mode. This repeats on and on
+
 
   /* USER CODE END 2 */
 
@@ -152,31 +119,14 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-/*    if (isSent == 1) {
-		  HAL_UART_Transmit_IT(&huart2, TxData, 10240);
-		  isSent = 0;
-	  }  */
-/*Transmits at set intervals interrupts the main code and
-sends one byte throughout program until transmission is complete */
-
-
-
-	 /* if (isSent == 1) {
-		  HAL_UART_Transmit_DMA(&huart2, TxData, 10240);
-		  isSent = 0;
+	  if(temp[0] == '\n') { //Function detects enter
+		  	  memcpy(FinalData, RxData, indx); //indx represents size as it increments depending on bytes stored in rxdata, rxdata value stored in finaldata as final after enter
+		  	  indx = 0;
 	  }
-	  DMA version, similar but DMA does not do interrupts so main code wont be as delayed
-	  Interrupts do delay main code but we dont notice since its very small, even delays HAL_Delay
-	  somewhat. DMA means less strain and can avoid the cpu. Same results because either way
-	  the code will have to cycle twice before it can work in both, but it would be quicker in DMA. */
-	  // DMA Normal, in this mode if there is no while loop it delivers data once and never again.
 
 	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-	  HAL_Delay(500);
-	  countloop++;
+	  HAL_Delay(1000);
 
-	  //USE Block normal transmit for small data, interrupt for larger data and DMA for lots of data to be transferred.
-	  //Circular DMA useful to transfer very large bits of data.
   }
   /* USER CODE END 3 */
 }
@@ -272,23 +222,6 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
-
-}
-
-/**
-  * Enable DMA controller clock
-  */
-static void MX_DMA_Init(void)
-{
-
-  /* DMA controller clock enable */
-  __HAL_RCC_DMAMUX1_CLK_ENABLE();
-  __HAL_RCC_DMA1_CLK_ENABLE();
-
-  /* DMA interrupt init */
-  /* DMA1_Channel1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
 }
 
