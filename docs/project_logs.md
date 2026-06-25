@@ -99,7 +99,7 @@ Circuit/setup:
 
 Circuit diagram:
 
-'''text
+```text
        +5 V from PSU
             │
             │
@@ -165,3 +165,97 @@ Stage 4 passed. The STM32 PWM signal successfully drove the IRLB8721 gate, and t
 Next step:
 
 Move to Stage 5: open-loop DC motor PWM test with a flyback diode and supply capacitor.
+
+## Stage 5 — Open-loop DC motor PWM test
+
+Date: 25/06/2026
+
+Goal:  
+Verify that the STM32 PWM signal can control a DC motor through the IRLB8721 MOSFET with flyback protection fitted.
+
+Circuit/setup:
+- Board: NUCLEO-G474RE
+- Main components: IRLB8721 MOSFET, DC motor, 1N5822 flyback diode, 220 Ω gate resistor, 10 kΩ gate pulldown, bulk capacitor
+- Supply: 5V PSU
+- Current limit: 0.2A
+- Key pin/peripheral: PC0 / configured timer PWM channel
+- Important wiring note: STM32 GND, PSU negative, MOSFET source, and the bottom of the 10 kΩ pulldown are connected to the same common ground.
+
+Circuit diagram:
+
+```text
+       +V from PSU
+            │
+            ├───────────────┐
+            │               │
+          Motor          1N5822 diode
+            │        cathode/stripe ↑
+            │        anode ↓
+            ├───────────────┘
+            │
+       Drain — IRLB8721 — Source
+                              │
+                              │
+PSU negative / common ground ─┴──────── STM32 GND
+                              │
+                              │
+                          10 kΩ pulldown
+                              │
+PC0 PWM ─ 220 Ω ──────────────┘
+        gate resistor
+
+Bulk capacitor:
+capacitor + → PSU +
+capacitor - → PSU -
+```
+
+Expected result:
+- 0% duty: motor off.
+- Increasing duty cycle: motor speed increases.
+- 100% duty: motor runs at maximum speed for the chosen supply voltage.
+- Flyback diode protects the MOSFET from motor inductive kickback.
+- MOSFET remains cool or only slightly warm.
+- STM32 does not reset or behave unpredictably.
+
+Measurements / observations:
+
+| Check | What to record | Result |
+|---|---|---|
+| PSU setting | Supply voltage and current limit | 5 V, 0.2 A |
+| 0% duty | Whether motor is fully off | Off |
+| Low duty | Duty percentage and whether motor starts spinning | 25% duty, motor starts spinning |
+| Medium duty | Duty percentage and whether motor speed clearly increases | 50% duty, clear increase in speed |
+| 100% duty | Whether motor reaches maximum speed for chosen supply voltage | 100% duty, motor reaches maximum speed for 5 V supply|
+| Gate waveform | PC0 gate signal voltage/frequency | Approximately 0–3.32 V PWM at around 9.9 kHz |
+| PSU current | Current shown on PSU during motor running | Approximately 0.01 A while running at 25% duty and 0.131A at 100% duty |
+| MOSFET temperature | Cool, slightly warm, hot | Slightly warm |
+| Drain waveform | Any obvious large spike/ringing when PWM switches | Very small switching spike observed, peak below 5.68 V; no excessive drain spike seen|
+| STM32 behaviour | Whether board stays stable or resets/glitches | Stable, no resets or glitches |
+
+### Stage 5 wiring
+
+![Stage 5 wiring](../photos/Stage%205%20Evidence/Stage%205%20Wiring.jpeg)
+
+### Motor waveform at 100% duty
+
+![Motor waveform at 100% duty](../photos/Stage%205%20Evidence/Motor%20Waveform%20100%25%20duty.png)
+
+### PSU setup
+
+![DC PSU](../photos/Stage%205%20Evidence/DC%20PSU.jpeg)
+
+Problems found:
+
+No major faults were found. A very small switching spike was observed on the drain waveform, but the peak remained below approximately 5.68 V, which is well below the IRLB8721 VDS limit of 30 V.
+
+Fixes made:
+
+Flyback diode and bulk capacitor were fitted before testing the motor. The common ground connection from Stage 4 was maintained.
+
+Conclusion:
+
+Stage 5 passed. The STM32 PWM signal on PC0 successfully controlled the DC motor through the IRLB8721 MOSFET. Increasing duty cycle increased motor speed, the STM32 remained stable, and the drain switching spike remained small with the flyback diode fitted. The MOSFET became only slightly warm during testing.
+
+Next step:
+
+Move to improving the control method, such as serial/button/potentiometer duty control, before later adding RPM sensing.

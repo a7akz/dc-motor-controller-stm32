@@ -96,19 +96,9 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
-  TIM1 -> CCR1 = 75;
+  TIM1 -> CCR1 = 100;
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1); //PWM by itself
 
- /* pwmData[0] = 10;
-  pwmData[1] = 20;
-  pwmData[2] = 30;
-  pwmData[3] = 40;
-  pwmData[4] = 50;
-  pwmData[5] = 60;
-  pwmData[6] = 70;
-  pwmData[7] = 80;
-  pwmData[8] = 90;
-  pwmData[9] = 100; */
 
 
   /* USER CODE END 2 */
