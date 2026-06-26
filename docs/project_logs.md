@@ -258,4 +258,128 @@ Stage 5 passed. The STM32 PWM signal on PC0 successfully controlled the DC motor
 
 Next step:
 
-Move to improving the control method, such as serial/button/potentiometer duty control, before later adding RPM sensing.
+Move to improving the control method, such as serial/button/potentiometer duty control, before later adding RPM sensing.   
+
+## Stage 6 — UART-controlled PWM duty cycle
+
+Date: 26/06/2026
+
+Goal:  
+Verify that the STM32 can receive duty-cycle commands over UART and use them to adjust the motor PWM duty cycle without reflashing the firmware.
+
+Circuit/setup:
+- Board: NUCLEO-G474RE
+- Motor circuit: same low-side IRLB8721 MOSFET circuit from Stage 5
+- Main components: DC motor, IRLB8721 MOSFET, 1N5822 flyback diode, 220 Ω gate resistor, 10 kΩ gate pulldown, bulk capacitor, 100 nF ceramic capacitor
+- Supply: 5V
+- Current limit: about 0.5 A initially, motor stall current measured at 0.436 A, but then moved back to 0.3A
+- PWM pin/peripheral: PC0 / configured timer PWM channel
+- UART interface: USART 2
+- Terminal software: Terra Term  
+- Baud rate: 115200
+- Important wiring note: STM32 GND, PSU negative, MOSFET source, and the gate pulldown reference are connected to the same common ground.
+
+Circuit diagram:
+
+```text
+Motor power circuit: same as Stage 5
+
+       +V from PSU
+            │
+            ├───────────────┐
+            │               │
+          Motor          1N5822 diode
+            │        cathode/stripe ↑
+            │        anode ↓
+            ├───────────────┘
+            │
+       Drain — IRLB8721 — Source
+                              │
+                              │
+PSU negative / common ground ─┴──────── STM32 GND
+                              │
+                              │
+                          10 kΩ pulldown
+                              │
+PC0 PWM ─ 220 Ω ──────────────┘
+        gate resistor
+
+UART control:
+PC terminal → USB/ST-LINK VCP → STM32 UART → PWM duty update
+
+Capacitors:
+bulk capacitor + → PSU +
+bulk capacitor - → PSU -
+100 nF ceramic across PSU + and PSU -
+```
+
+Expected result:
+- Sending `0` sets motor duty cycle to 0% and turns the motor off.
+- Sending `25` sets duty cycle to 25%.
+- Sending `50` sets duty cycle to 50%.
+- Sending `75` sets duty cycle to 75%.
+- Sending `100` sets duty cycle to 100%.
+- STM32 prints confirmation after receiving a valid command.
+- Invalid commands are ignored or handled safely.
+- Motor speed changes without needing to reflash the firmware.
+
+Measurements / observations:
+
+| Check | What to record | Result |
+|---|---|---|
+| PWM frequency | PWM frequency measured/used | 9.9kHz |
+| Command `0` | Motor response and terminal reply | Motor Off|
+| Command `25` | Motor response and terminal reply | Motor at 25% duty cycle |
+| Command `50` | Motor response and terminal reply | Motor at 50% duty cycle |
+| Command `75` | Motor response and terminal reply | Motor at 75% duty cycle  |
+| Command `100` | Motor response and terminal reply | Motor working at full speed |
+| Invalid input | Whether invalid command is safely rejected | Yes, invalid inputs safely dealt with |
+| MOSFET temperature | Cool, slightly warm, hot | Cool |
+| PSU current | Current at low and high duty | 25%: 0.008A running, 0.024A stall. 100%: 0.136A running, 0.436A stall|
+| STM32 behaviour | Whether board stays stable or resets/glitches | Stable |
+
+
+Evidence captured:
+- Terminal screenshot: [Terminal photo](../photos/Stage%206%20Evidence/Terminal%20photo.png)
+- Wiring photo: [Wiring Stage 6 Photo](../photos/Stage%206%20Evidence/Wiring%20Stage%206%20Photo.jpeg)
+- Oscilloscope screenshot: [Motor waveform at 38% duty](../photos/Stage%206%20Evidence/Motor%20Waveform%2038%25%20duty.png)
+- PSU photo: [PSU Photo](../photos/Stage%206%20Evidence/PSU%20Photo.jpeg)
+- Git commit/reference:
+
+### Stage 6 terminal output
+
+![Terminal photo](../photos/Stage%206%20Evidence/Terminal%20photo.png)
+
+### Stage 6 wiring
+
+![Wiring Stage 6 Photo](../photos/Stage%206%20Evidence/Wiring%20Stage%206%20Photo.jpeg)
+
+### Motor waveform at 38% duty
+
+![Motor waveform at 38% duty](../photos/Stage%206%20Evidence/Motor%20Waveform%2038%25%20duty.png)
+
+### PSU setup
+
+![PSU Photo](../photos/Stage%206%20Evidence/PSU%20Photo.jpeg)
+
+Problems found:
+
+- UART receives ASCII characters, so typed numbers had to be converted from text to an integer.
+- Tera Term sends Enter as \r and/or \n, which needed to be handled properly.
+- Duty value had to be converted into the timer CCR value, not written directly as a raw percentage.
+
+Fixes made:
+- Added UART receive parsing for numeric input.
+- Added buffer handling for multi-digit duty commands.
+- Added duty limit from 0% to 100%.
+- Added UART confirmation message after duty update.
+- Updated PWM CCR based on received duty percentage.
+
+
+Conclusion:
+
+Stage 6 passed. The STM32 successfully received duty-cycle commands over USART2 and used them to update the PWM duty cycle on PC0 without reflashing the firmware. Commands from the terminal changed the motor speed as expected from 0% to 100% duty cycle. Invalid input was handled safely, the STM32 remained stable, and the MOSFET stayed cool during testing. This confirms that the motor controller can now be adjusted through a serial command interface.
+
+Next step:
+
+If Stage 6 passes, move to adding a more practical speed input method or feedback measurement, such as potentiometer control, button control, current sensing, or RPM sensing.

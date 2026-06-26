@@ -21,6 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdlib.h>
+#include <stdio.h>
 
 /* USER CODE END Includes */
 
@@ -43,6 +45,10 @@
 TIM_HandleTypeDef htim1;
 DMA_HandleTypeDef hdma_tim1_ch1;
 
+UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart2_rx;
+DMA_HandleTypeDef hdma_usart2_tx;
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -52,6 +58,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_TIM1_Init(void);
+static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -59,7 +66,11 @@ static void MX_TIM1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-uint16_t pwmData[10];
+char rxBuf[4]; //Receives input
+uint8_t ch; //Buffer to store into rxBuf
+uint8_t i; //Index
+char txBuf[20]; //Outputs duty cycle
+int duty = 0; //Directly changes duty
 
 /* USER CODE END 0 */
 
@@ -94,10 +105,13 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_TIM1_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  TIM1 -> CCR1 = 100;
+  TIM1 -> CCR1 = duty; //CCR is made to equal to duty variable
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1); //PWM by itself
+
+
 
 
 
@@ -110,7 +124,30 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  HAL_UART_Receive(&huart2, &ch, 1, HAL_MAX_DELAY); //Receives each character
+	  if(ch == '\r' ||ch == '\n' ) { //If enter moves to change duty
+		  if (i > 0) { //Makes sure it runs when there is at least something in rxBuf
+		  rxBuf[i] = '\0'; //Sets the index as \0 to indicate end off.
 
+		  duty = atoi(rxBuf); //Converts rxBuf values to an actual integer
+
+		  if(duty < 0) duty = 0; //Makes sure that program doesnt break by entering less than 0 or more than 100
+		  if(duty > 100) duty = 100;
+
+		  int len = snprintf(txBuf, sizeof(txBuf), "Duty Cycle: %d%%\r\n", duty); //snprint returns a length and also reformats txbuf to the string typed
+
+		  HAL_UART_Transmit_DMA(&huart2,(uint8_t *) txBuf, len); //Outputs duty cycle value
+
+		  TIM1 -> CCR1 = duty; //Changes duty cycle
+
+		  i = 0; //Sets indx back to 0 to start again
+		  }
+	  }
+
+	  else if((ch >= '0') && (ch <= '9')) { //If no enter and want to enter more values
+
+		  if (i < sizeof(rxBuf) - 1) rxBuf[i++] = ch; // makes sure you cant enter more than 3 values and also makes rxBuf = ch
+	  }
 
   }
   /* USER CODE END 3 */
@@ -244,6 +281,54 @@ static void MX_TIM1_Init(void)
 }
 
 /**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart2.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart2, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart2, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -257,6 +342,12 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+  /* DMA1_Channel2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
+  /* DMA1_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
 
 }
 
